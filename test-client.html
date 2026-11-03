@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>KJ Trace Studio - Yjs PoC client</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", sans-serif;
+      padding: 16px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 18px; }
+    .row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    input[type="text"] { padding: 4px 8px; font-size: 14px; }
+    button { padding: 4px 12px; font-size: 14px; cursor: pointer; }
+    .status { padding: 6px 10px; border-radius: 4px; font-size: 12px; }
+    .status.connected { background: #d4f4dd; color: #226633; }
+    .status.disconnected { background: #f4d4d4; color: #883333; }
+    .cards { border: 1px solid #ccc; min-height: 200px; padding: 8px; border-radius: 4px; }
+    .card {
+      background: #f6f4ea; padding: 6px 10px; margin-bottom: 4px; border-radius: 3px;
+      border: 1px solid #ccc; font-size: 13px; line-height: 1.4; white-space: pre-wrap;
+    }
+    .meta { color: #888; font-size: 11px; }
+    .presence { display: flex; gap: 4px; flex-wrap: wrap; }
+    .presence-chip {
+      padding: 2px 8px; border-radius: 10px; color: #fff; font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <h1>KJ Trace Studio — Yjs PoC client</h1>
+
+  <div class="row">
+    <label>サーバー:</label>
+    <input type="text" id="server" value="ws://localhost:1234" size="22" />
+    <label>ルーム:</label>
+    <input type="text" id="room" value="demo" size="12" />
+    <label>名前:</label>
+    <input type="text" id="nickname" value="" size="10" />
+    <label>メアド:</label>
+    <input type="text" id="email" value="" size="20" placeholder="(任意)" />
+    <button id="connect">接続</button>
+    <span id="status" class="status disconnected">未接続</span>
+  </div>
+
+  <div class="row">
+    <input type="text" id="cardBody" placeholder="カード本文..." size="40" />
+    <button id="addCard">カード追加</button>
+    <button id="clearAll">全削除</button>
+  </div>
+
+  <div class="row">
+    <strong>オンライン:</strong>
+    <div id="presence" class="presence"></div>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <script type="module">
+    import * as Y from 'https://cdn.jsdelivr.net/npm/yjs@13.6.20/+esm';
+    import * as awarenessProtocol from 'https://cdn.jsdelivr.net/npm/y-protocols@1.0.6/awareness.js/+esm';
+    import * as syncProtocol from 'https://cdn.jsdelivr.net/npm/y-protocols@1.0.6/sync.js/+esm';
+    import * as encoding from 'https://cdn.jsdelivr.net/npm/lib0@0.2.97/encoding.js/+esm';
+    import * as decoding from 'https://cdn.jsdelivr.net/npm/lib0@0.2.97/decoding.js/+esm';
+
+    const MESSAGE_SYNC = 0;
+    const MESSAGE_AWARENESS = 1;
+
+    let ws = null;
+    let doc = null;
+    let tables = null;     // doc.getMap('tables')
+    let cardsArr = null;   // tables.get('cards') — same path used by kj-trace-studio
+    let awareness = null;
+
+    const $server = document.getElementById('server');
+    const $room = document.getElementById('room');
+    const $nick = document.getElementById('nickname');
+    const $email = document.getElementById('email');
+    const $status = document.getElementById('status');
+    const $cards = document.getElementById('cards');
+    const $presence = document.getElementById('presence');
+
+    // Random color per session
+    const myColor =
+      '#' + Math.floor(Math.random() * 0xc0c0c0 + 0x303030).toString(16).padStart(6, '0');
+
+    function setStatus(text, cls) {
+      $status.textContent = text;
+      $status.className = 'status ' + cls;
+    }
+
+    function uuid() {
+      return (
+        Math.random().toString(36).slice(2, 10) +
+        Date.now().toString(36).slice(-4)
+      );
+    }
+
+    function render() {
+      if (!cardsArr) return;
+      $cards.innerHTML = '';
+      cardsArr.forEach((c) => {
+        const el = document.createElement('div');
+        el.className = 'card';
+        const body = document.createElement('div');
+        // kj-trace-studio stores cards.body as Y.Text; locally created cards
+        // here also use Y.Text.  Fall back to plain string for safety.
+        const bodyValue = c.get('body');
+        body.textContent =
+          bodyValue && typeof bodyValue.toString === 'function'
+            ? bodyValue.toString()
+            : (bodyValue ?? '(空)');
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = `${c.get('code') ?? c.get('id')} / by ${c.get('createdBy') ?? '?'}`;
+        el.appendChild(body);
+        el.appendChild(meta);
+        $cards.appendChild(el);
+      });
+    }
+
+    function renderPresence() {
+      if (!awareness) return;
+      $presence.innerHTML = '';
+      awareness.getStates().forEach((s, id) => {
+        if (!s.user) return;
+        const chip = document.createElement('span');
+        chip.className = 'presence-chip';
+        chip.style.background = s.user.color ?? '#666';
+        chip.textContent = s.user.name ?? '?';
+        $presence.appendChild(chip);
+      });
+    }
+
+    function connect() {
+      if (ws) { ws.close(); ws = null; }
+      const nick = ($nick.value || 'anon-' + Math.floor(Math.random() * 1000)).trim();
+      const email = $email.value.trim();
+      const qs = new URLSearchParams();
+      if (email) qs.set('email', email);
+      if (nick) qs.set('nick', nick);
+      const base = `${$server.value.replace(/\/$/, '')}/${$room.value || 'default'}`;
+      const url = qs.size ? `${base}?${qs}` : base;
+      doc = new Y.Doc();
+      // Match kj-trace-studio's yjsBridge: tables.get('cards') = Y.Array<Y.Map>
+      tables = doc.getMap('tables');
+      // Don't pre-create the cards Y.Array — leave it absent until either we
+      // receive it from a peer (via sync) or the user clicks 添加.  Creating a
+      // local empty Y.Array can race with sync and leave us bound to the
+      // wrong object.
+      const rebindCardsArr = () => {
+        const arr = tables.get('cards');
+        if (arr && arr !== cardsArr) {
+          cardsArr = arr;
+          cardsArr.observeDeep(() => render());
+          render();
+        } else if (!arr && cardsArr) {
+          cardsArr = null;
+          render();
+        }
+      };
+      rebindCardsArr();
+      // The remote peer may add or replace the 'cards' entry during sync —
+      // re-bind whenever the parent map changes.
+      tables.observe(rebindCardsArr);
+      // Belt-and-braces: also rebind on every doc update (covers the case
+      // where the initial sync transaction completes before our observer is
+      // ready to fire, which we've observed in practice).
+      doc.on('afterTransaction', rebindCardsArr);
+
+      awareness = new awarenessProtocol.Awareness(doc);
+      awareness.setLocalStateField('user', { name: nick, color: myColor });
+
+      // Debug handle for DevTools console
+      window.__bob = { doc, tables, get cardsArr() { return cardsArr; }, awareness };
+
+      awareness.on('change', renderPresence);
+
+      ws = new WebSocket(url);
+      ws.binaryType = 'arraybuffer';
+      ws.onopen = () => {
+        setStatus('接続中: ' + url, 'connected');
+        // Send sync step 1
+        const enc = encoding.createEncoder();
+        encoding.writeVarUint(enc, MESSAGE_SYNC);
+        syncProtocol.writeSyncStep1(enc, doc);
+        ws.send(encoding.toUint8Array(enc));
+
+        // Broadcast our awareness immediately
+        const awEnc = encoding.createEncoder();
+        encoding.writeVarUint(awEnc, MESSAGE_AWARENESS);
+        encoding.writeVarUint8Array(
+          awEnc,
+          awarenessProtocol.encodeAwarenessUpdate(awareness, [doc.clientID])
+        );
+        ws.send(encoding.toUint8Array(awEnc));
+      };
+
+      ws.onmessage = (ev) => {
+        const dec = decoding.createDecoder(new Uint8Array(ev.data));
+        const type = decoding.readVarUint(dec);
+        if (type === MESSAGE_SYNC) {
+          const reply = encoding.createEncoder();
+          encoding.writeVarUint(reply, MESSAGE_SYNC);
+          syncProtocol.readSyncMessage(dec, reply, doc, ws);
+          if (encoding.length(reply) > 1) {
+            ws.send(encoding.toUint8Array(reply));
+          }
+        } else if (type === MESSAGE_AWARENESS) {
+          awarenessProtocol.applyAwarenessUpdate(
+            awareness,
+            decoding.readVarUint8Array(dec),
+            ws
+          );
+        }
+      };
+
+      ws.onclose = (ev) => {
+        const code = ev?.code ?? '?';
+        // 1006 = abnormal closure (e.g. server returned non-101 during upgrade).
+        // Our server rejects with HTTP 401 → browser sees this as 1006.
+        if (code === 1006) {
+          setStatus('接続拒否 (招待リスト外の可能性)', 'disconnected');
+        } else {
+          setStatus(`切断 (code=${code})`, 'disconnected');
+        }
+      };
+      ws.onerror = () => setStatus('エラー', 'disconnected');
+
+      // Forward local Y.Doc updates to the server
+      doc.on('update', (update, origin) => {
+        if (origin === ws) return; // don't echo back updates we just received
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const enc = encoding.createEncoder();
+        encoding.writeVarUint(enc, MESSAGE_SYNC);
+        syncProtocol.writeUpdate(enc, update);
+        ws.send(encoding.toUint8Array(enc));
+      });
+
+      // Forward awareness changes
+      awareness.on('update', ({ added, updated, removed }, origin) => {
+        if (origin === ws) return;
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const changed = added.concat(updated, removed);
+        const enc = encoding.createEncoder();
+        encoding.writeVarUint(enc, MESSAGE_AWARENESS);
+        encoding.writeVarUint8Array(
+          enc,
+          awarenessProtocol.encodeAwarenessUpdate(awareness, changed)
+        );
+        ws.send(encoding.toUint8Array(enc));
+      });
+    }
+
+    document.getElementById('connect').addEventListener('click', connect);
+
+    document.getElementById('addCard').addEventListener('click', () => {
+      if (!tables) { alert('まず接続してください'); return; }
+      const body = document.getElementById('cardBody').value.trim();
+      if (!body) return;
+      let arr = tables.get('cards');
+      if (!arr) {
+        arr = new Y.Array();
+        tables.set('cards', arr);
+      }
+      const id = uuid();
+      const c = new Y.Map();
+      c.set('id', id);
+      c.set('code', 'P00-' + id.slice(0, 4));
+      c.set('body', body);
+      // kj-trace-studio's body field is Y.Text — convert string to Y.Text so
+      // it merges correctly with concurrent edits from the Electron side.
+      const tBody = new Y.Text();
+      tBody.insert(0, body);
+      c.set('body', tBody);
+      c.set('createdBy', $nick.value || 'anon');
+      c.set('createdAt', new Date().toISOString());
+      arr.push([c]);
+      document.getElementById('cardBody').value = '';
+    });
+
+    document.getElementById('clearAll').addEventListener('click', () => {
+      const arr = tables?.get('cards');
+      if (!arr) return;
+      if (!confirm('全カードを削除しますか？')) return;
+      arr.delete(0, arr.length);
+    });
+  </script>
+</body>
+</html>

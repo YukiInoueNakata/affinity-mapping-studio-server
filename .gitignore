@@ -1,0 +1,19 @@
+node_modules/
+data/
+*.log
+.DS_Store
+
+# secrets / runtime (絶対に commit しない)
+config/admin-token.txt
+config/server.json
+data/runtime.json
+*.bin
+*.epoch
+*.bak
+config/*.local.json
+
+# internal notes (kept locally, never published)
+CLAUDE.md
+WORKLOG.md
+review.md
+admin-gui-plan.md

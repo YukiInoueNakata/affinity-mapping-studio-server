@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+  <title>Affinity Mapping Studio Server 設定</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", sans-serif;
+      margin: 0; padding: 18px; font-size: 13px; color: #222; background: #f6f4ea;
+    }
+    h1 { font-size: 14px; margin: 0 0 12px; }
+    label { display: block; font-size: 11px; color: #777; margin: 10px 0 3px; }
+    input { width: 100%; padding: 5px 8px; font-size: 13px; box-sizing: border-box;
+            border: 1px solid #ccc; border-radius: 3px; }
+    .row { margin-bottom: 10px; }
+    .hint { color: #888; font-size: 11px; margin-top: 3px; }
+    .status {
+      padding: 6px 10px; margin: 12px 0; border-radius: 3px;
+      background: #e0e9f1; font-size: 12px;
+    }
+    .status.on { background: #d8e8d0; color: #2a5028; }
+    .status.off { background: #f4d4d4; color: #883333; }
+    .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+    button {
+      padding: 5px 12px; font-size: 13px; cursor: pointer;
+      border: 1px solid #ccc; background: #fff; border-radius: 3px;
+    }
+    button.primary { background: #5b7e9f; color: #fff; border-color: #5b7e9f; }
+    button.primary:hover { background: #4a6d8e; }
+    .saved { color: #2a8030; font-size: 11px; margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Affinity Mapping Studio Server 設定</h1>
+
+  <div class="status" id="status">読込中...</div>
+
+  <div class="row">
+    <label for="token">管理用トークン (KJ_ADMIN_TOKEN)</label>
+    <input type="text" id="token" placeholder="任意の文字列" autocomplete="off" />
+    <div class="hint">ブラウザで管理画面を開く時に入力するパスワード．数字 / 英字を含む 12 字以上を推奨．</div>
+  </div>
+
+  <div class="row">
+    <label for="port">ポート番号</label>
+    <input type="number" id="port" min="1" max="65535" />
+    <div class="hint">既定 1234．他のアプリと衝突する場合のみ変更．</div>
+  </div>
+
+  <div class="actions">
+    <span id="saved" class="saved"></span>
+    <button id="startBtn">起動</button>
+    <button id="stopBtn">停止</button>
+    <button id="saveBtn" class="primary">保存</button>
+  </div>
+
+  <script src="./settings.js"></script>
+</body>
+</html>

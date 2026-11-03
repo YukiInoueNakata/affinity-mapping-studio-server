@@ -1,0 +1,18 @@
+{
+  "exposure": {
+    "preset": "local"
+  },
+  "network": {
+    "appBindHost": "127.0.0.1",
+    "trustedProxySources": [
+      "127.0.0.1/32",
+      "::1/128"
+    ]
+  },
+  "authPolicy": {
+    "noneOpenEnabled": false
+  },
+  "limits": {
+    "maxPayloadBytes": 10485760
+  }
+}

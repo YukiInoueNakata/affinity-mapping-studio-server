@@ -1,0 +1,5 @@
+# Windows ネイティブスクリプトは CRLF 固定．
+# (LF だと cmd.exe が .bat を壊れた状態でパースする — 2026-06-03 incident)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

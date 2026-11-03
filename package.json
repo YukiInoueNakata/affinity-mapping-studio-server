@@ -1,0 +1,35 @@
+{
+  "name": "affinity-mapping-studio-server",
+  "version": "0.2.0",
+  "description": "Affinity Mapping Studio Server (AMS Server) — Yjs + WebSocket collaboration server for Affinity Mapping Studio (formerly kj-trace-server / KJ Studio Server)",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "kj-admin": "bin/kj-admin.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "admin": "node bin/kj-admin.js",
+    "setup": "node bin/setup-wizard.js",
+    "tray": "electron tray/main.cjs",
+    "smoke": "node test-smoke.js",
+    "test-schema": "node test-schema.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "lib0": "^0.2.97",
+    "ws": "^8.18.0",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.20"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "vitest": "^4.1.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
