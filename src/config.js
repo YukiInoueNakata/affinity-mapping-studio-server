@@ -228,6 +228,41 @@ const asStringArray = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
  *  以降は getResolvedConfig() で参照する． */
 export async function loadServerConfig() {
   const fileCfg = (await readConfigFile()) ?? {};
+  return resolveServerConfig(fileCfg);
+}
+
+/** 旧ウィザード (2026-11-07 修正前) は authPolicy ではなく auth.{legacyEmail,allowedCidrs,
+ *  trustedProxyHeader} に書いていたため，サーバーに黙って無視されていた．
+ *  authPolicy に明示値が無い項目だけ auth から読み替え，必ず警告を出す (fail-loud)． */
+function readLegacyAuthSection(fileCfg) {
+  const legacy = fileCfg.auth;
+  if (!legacy || typeof legacy !== 'object') return { values: {}, warning: null };
+  const ap = fileCfg.authPolicy ?? {};
+  const values = {};
+  const mapped = [];
+  if (typeof legacy.legacyEmail === 'boolean' && ap.legacyEmailEnabled == null) {
+    values.legacyEmailEnabled = legacy.legacyEmail;
+    mapped.push(`auth.legacyEmail→authPolicy.legacyEmailEnabled=${legacy.legacyEmail}`);
+  }
+  if (Array.isArray(legacy.allowedCidrs) && legacy.allowedCidrs.length > 0 && ap.allowedCidrs == null) {
+    values.allowedCidrs = legacy.allowedCidrs;
+    mapped.push(`auth.allowedCidrs→authPolicy.allowedCidrs`);
+  }
+  if (typeof legacy.trustedProxyHeader === 'string' && legacy.trustedProxyHeader && ap.trustedProxyHeader == null) {
+    values.trustedProxyHeader = legacy.trustedProxyHeader;
+    mapped.push(`auth.trustedProxyHeader→authPolicy.trustedProxyHeader`);
+  }
+  const warning =
+    'config/server.json の "auth" は旧形式 (旧ウィザードの不具合で無視されていた)．' +
+    (mapped.length ? `読み替えた: ${mapped.join(', ')}．` : '読み替える項目は無かった．') +
+    ' npm run setup をやり直すか "authPolicy" に書き換えてください';
+  return { values, warning };
+}
+
+/** fileCfg (config/server.json の中身) と env から resolved config を組み立てる．
+ *  テストでは fileCfg と adminTokenInfo を直接渡せる (本物の config/ を読まない)． */
+export async function resolveServerConfig(fileCfg = {}, opts = {}) {
+  const legacyAuth = readLegacyAuthSection(fileCfg);
   const presetName = resolveValue(
     fileCfg.exposure?.preset,
     'KJ_EXPOSURE_PRESET',
@@ -422,11 +457,13 @@ export async function loadServerConfig() {
   const authPolicy = {
     inviteTokenEnabled: true,   // 常時
     roomPasswordEnabled: true,  // 常時
+    // 2026-11-07: 公開系 preset では既定 false (自己申告の email はなりすませるため)．
+    // 明示 (config / env) すれば従来どおり true にもできる．
     legacyEmailEnabled: resolveValue(
-      fileCfg.authPolicy?.legacyEmailEnabled,
+      fileCfg.authPolicy?.legacyEmailEnabled ?? legacyAuth.values.legacyEmailEnabled,
       'KJ_AUTH_LEGACY_EMAIL',
       asBoolean,
-      DEFAULTS.authPolicy.legacyEmailEnabled
+      PUBLIC_PRESETS.has(presetName) ? false : DEFAULTS.authPolicy.legacyEmailEnabled
     ),
     tailscaleEnabled: resolveValue(
       fileCfg.authPolicy?.tailscaleEnabled,
@@ -435,13 +472,13 @@ export async function loadServerConfig() {
       DEFAULTS.authPolicy.tailscaleEnabled
     ),
     allowedCidrs: resolveValue(
-      fileCfg.authPolicy?.allowedCidrs,
+      fileCfg.authPolicy?.allowedCidrs ?? legacyAuth.values.allowedCidrs,
       'KJ_ALLOWED_CIDRS',
       asStringArray,
       DEFAULTS.authPolicy.allowedCidrs
     ),
     trustedProxyHeader: resolveValue(
-      fileCfg.authPolicy?.trustedProxyHeader,
+      fileCfg.authPolicy?.trustedProxyHeader ?? legacyAuth.values.trustedProxyHeader,
       'KJ_TRUSTED_PROXY_HEADER',
       asString,
       DEFAULTS.authPolicy.trustedProxyHeader
@@ -468,6 +505,7 @@ export async function loadServerConfig() {
 
   // R3: 公開系 preset では localhostAuto を強制 OFF
   const warnings = [];
+  if (legacyAuth.warning) warnings.push(legacyAuth.warning);
   if (PUBLIC_PRESETS.has(presetName)) {
     if (authPolicy.localhostAutoEnabled) {
       warnings.push(
@@ -496,7 +534,7 @@ export async function loadServerConfig() {
   }
 
   // admin token 解決
-  const adminTokenInfo = await resolveAdminToken();
+  const adminTokenInfo = opts.adminTokenInfo ?? await resolveAdminToken();
 
   // active providers (banner 用)
   const providers = ['room-token'];
@@ -556,7 +594,9 @@ export async function applyExposurePreset(presetName, overrides = {}) {
   const existing = (await readConfigFile()) ?? {};
   const merged = {
     ...existing,
-    exposure: { preset: presetName, ...(existing.exposure ?? {}), ...overrides.exposure },
+    // 2026-11-07: 旧コードは { preset, ...existing.exposure } の順で，既存の preset が
+    // 新しい preset を上書きし，切り替えが効かなかった．既存を先に広げてから上書きする．
+    exposure: { ...(existing.exposure ?? {}), preset: presetName, ...overrides.exposure },
     network: {
       ...(existing.network ?? {}),
       ...(preset.suggestedBindHost && { appBindHost: preset.suggestedBindHost }),

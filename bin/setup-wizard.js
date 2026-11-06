@@ -165,10 +165,13 @@ async function main() {
       adminBindHost,
       adminPort: Number(adminPort),
     },
-    auth: {
-      legacyEmail: allowLegacyEmail,
+    // 2026-11-07: サーバー (src/config.js) が読む名前 authPolicy.* で書く．
+    // 旧版は auth.{legacyEmail,...} と書いており，3 項目とも黙って無視されていた．
+    authPolicy: {
+      legacyEmailEnabled: allowLegacyEmail,
       allowedCidrs: allowedCidrs ? allowedCidrs.split(',').map((s) => s.trim()).filter(Boolean) : [],
-      trustedProxyHeader,
+      trustedProxyHeader: trustedProxyHeader || null,
+      ...(preset.requireAuth && { noneOpenEnabled: false }),
     },
     appliedAt: new Date().toISOString(),
   };

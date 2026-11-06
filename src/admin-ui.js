@@ -29,7 +29,7 @@
     function getToken() {
       let t = sessionStorage.getItem(TOKEN_KEY);
       if (!t) {
-        t = prompt('KJ_ADMIN_TOKEN を入力してください（サーバー側で設定したもの）:');
+        t = prompt('管理トークンを入力してください．\nサーバーのフォルダの config/admin-token.txt の中身（64 文字）をそのまま貼り付けます．');
         if (!t) { document.body.textContent = 'token required'; throw new Error('no token'); }
         sessionStorage.setItem(TOKEN_KEY, t);
       }
