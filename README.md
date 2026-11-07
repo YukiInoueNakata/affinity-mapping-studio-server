@@ -1,110 +1,106 @@
-# Affinity Mapping Studio Server (AMS Server，旧名: kj-trace-server / KJ Studio Server)
+# Affinity Mapping Studio Server (AMS Server)
 
-Affinity Mapping Studio の共同編集サーバー実装．Yjs リアルタイム同期 + 招待リスト + 監査ログを提供．
+[Affinity Mapping Studio](https://github.com/YukiInoueNakata/affinity-mapping-studio) の共同編集サーバーです（Yjs + WebSocket）．何人かが同時に同じ親和図を編集でき，部屋ごとの招待・監査ログ・自動スナップショットを備えます．
+旧名は kj-trace-server / KJ Studio Server です．
 
-> 2026-06-15 リネーム: **KJ Studio Server** → **Affinity Mapping Studio Server (AMS Server)**．
-> ディレクトリ名は後方互換性のため `kj-trace-server/` のまま保持．npm package 名は
-> `affinity-mapping-studio-server`．プロトコル契約 (`kj-studio.v1` subprotocol /
-> `kj-room-` キー / `KJ_*` env / `.kjproj` / `getMap('tables')`) は互換維持のため不変．
+The collaboration server for Affinity Mapping Studio (Yjs + WebSocket), with per-room invitations, audit logs, and automatic snapshots.
 
-## できること (Phase 4b-1)
+## はじめての方へ / Getting started
 
-- WebSocket で複数クライアントを受け付け，Yjs プロトコルで同期
-- **ルームメタデータ管理**: `auditLogging` (off/on) と `accessControl` (open/invite_list) をプロジェクトごとに設定
-- **招待リスト**: `invite_list` モードでは登録済みメアドのみ接続可
-- **監査ログ**: `auditLogging=on` のとき全 Yjs transaction を user / nick / ip / bytes / timestamp 付きで永続記録
-- **CSV エクスポート**: IRB 提出用ログを `kj-admin audit <room> --csv out.csv` で抽出
-- Awareness API でプレゼンス（誰がオンライン）共有
-- Y.Doc updates をファイル append-log で永続化
+インストールから，部屋の作成・招待・外からの参加までを画像つきで説明しています．
 
-## セットアップ
+- [はじめてのガイド（日本語）](docs/getting-started.ja.md)
+- [Getting Started (English)](docs/getting-started.en.md)
+
+最短の手順（Node.js 20 以上と，外に公開するなら cloudflared が必要）:
 
 ```bash
-cd kj-trace-server
+git clone https://github.com/YukiInoueNakata/affinity-mapping-studio-server.git
+cd affinity-mapping-studio-server
 npm install
-npm start
+npm run setup     # 初期設定のウィザード（公開方式を選ぶ）
+npm start         # app: 1234 / admin: 1235（admin は 127.0.0.1 だけ）
 ```
 
-既定ポート: `1234`．`PORT=9999 npm start` で変更可．
+起動したら，同じ PC のブラウザで `http://127.0.0.1:1235/admin` を開き，`config/admin-token.txt` の中身を貼ってログインします．部屋の作成・招待・Cloudflare Quick Tunnel の起動は管理画面で行えます．
 
-## 管理 CLI (kj-admin)
+## できること
 
-```bash
-npm run admin -- help              # ヘルプ
-npm run admin -- room list         # ルーム一覧
-npm run admin -- room create kjlab2026 --name "KJ Lab 2026" --audit on --access invite_list
-npm run admin -- invite kjlab2026 alice@example.ac.jp --role editor
-npm run admin -- revoke kjlab2026 alice@example.ac.jp
-npm run admin -- room set kjlab2026 --audit off
-npm run admin -- audit kjlab2026                       # 末尾 20 件を表示
-npm run admin -- audit kjlab2026 --since 2026-05-01    # 日付フィルタ
-npm run admin -- audit kjlab2026 --csv ./audit.csv     # CSV エクスポート
-npm run admin -- room delete kjlab2026
-```
+- Yjs による同時編集（WebSocket・サブプロトコル `kj-studio.v1`）．参加者の在席表示（Awareness）
+- 部屋ごとの接続制御（open / invite_list）と，参加者ごとの招待トークン（有効期限・使用回数・再発行）
+- 監査ログ（接続・編集を誰がいつ行ったか）と CSV の書き出し
+- 自動スナップショットと，大きな一括変更を検知して直前の状態を保全する仕組み．admin による復元
+- 公開方式のプリセット（自分だけ・LAN・Tailscale・Cloudflare Quick/Named Tunnel・reverse-proxy）
+- ブラウザの管理画面と管理 CLI（`npm run admin -- <コマンド>`）
 
-## プロファイル
+## 公開方式（プリセット）
 
-`auditLogging × accessControl` の組み合わせで 4 プロファイル：
+`npm run setup` で選び，`config/server.json` に書かれます．あとから `npm run admin -- preset set <name>` で変えられます（要再起動）．
 
-| プロファイル | 監査 | アクセス | 用途 |
+| プリセット | 使う場面 |
+|---|---|
+| `local` | 自分の PC だけで試す |
+| `lan` | 研究室の LAN の中で使う（IP の制限と組み合わせる） |
+| `tailscale-serve` / `tailscale-funnel` | Tailscale の中だけ / Tailscale 経由で公開 |
+| `cloudflare-quick` | 一時的な URL で外の人と使う（毎回 URL が変わる．デモ・ゼミ向け） |
+| `cloudflare-named` | 独自ドメインの固定 URL で公開（Cloudflare のアカウントと DNS が必要） |
+| `reverse-proxy` | nginx・Caddy などの前段で TLS と認証を行う |
+| `custom` | 環境変数で個別に組む |
+
+公開系のプリセットでは，メールアドレスの自己申告だけでの接続（旧クライアント向け）は既定で無効です．
+
+## 部屋の種類
+
+監査ログ（off / on）と接続制御（open / invite_list）の組み合わせで決めます．
+
+| 種類 | 監査 | 接続 | 用途 |
 |---|---|---|---|
-| **A. 練習用** (既定) | OFF | OPEN | ゼミでのお試し / 個人作業 |
-| **B. 共同分析** | OFF | INVITE | メンバー限定だがログ不要 |
-| **C. 監査用** | ON | OPEN | 個人研究で作業ログを残したい |
-| **D. 厳格** | ON | INVITE | IRB 対象本研究 |
+| A. 練習用 | off | open | 自分の PC での試用（外に公開しない） |
+| B. 共同分析 | off | invite_list | メンバー限定．記録は不要 |
+| C. 記録つき個人作業 | on | open | 自分の作業の記録を残す（外に公開しない） |
+| D. 厳格 | on | invite_list | 倫理審査の対象の研究など |
 
-ルームを `kj-admin room create` で作らずに WebSocket クライアントが接続した場合は **プロファイル A** で自動作成される．
+外に公開するときは invite_list にしてください．登録されていない部屋への接続は，既定で拒否します（自動では作りません）．
 
-## クライアント接続
+## 安全のための設計
 
-WebSocket URL:
-```
-ws://<host>:1234/<roomId>?email=alice@xxx&nick=Alice
-```
+- 管理用のポート（既定 1235）は `127.0.0.1` だけで待ち受けます．トンネルや公開の対象にしないでください．管理画面と管理 API は管理トークン（Bearer）が必要です．
+- 共同編集用のポート（既定 1234）でも `/admin` は拒否します．
+- invite_list の部屋は，有効な招待トークンが無い接続を拒否します．
+- 秘密と実行時のデータ（`config/admin-token.txt`・`config/server.json`・`data/`）は `.gitignore` 済みです．
 
-クエリパラメータ:
-- `email`: ログイン用メアド．OPEN モードでは空欄可．INVITE_LIST モードでは必須
-- `nick`: 画面表示用ニックネーム（任意）
-
-INVITE_LIST モードで登録外メアド or 空欄の場合 → HTTP 401 で upgrade 拒否
-
-## ヘッドレステスト
+## 管理 CLI
 
 ```bash
-node test-smoke.js
+npm run admin -- help
+npm run admin -- room create seminar2026 --name "ゼミ 2026" --access invite_list
+npm run admin -- invite seminar2026 alice@example.ac.jp --role editor
+npm run admin -- url seminar2026 alice@example.ac.jp --host wss://example.trycloudflare.com/
+npm run admin -- audit seminar2026 --csv ./audit.csv
+npm run admin -- snapshot list seminar2026
 ```
 
-14 項目チェック (OPEN sync / INVITE 拒否 / INVITE 許可 / 監査ログ / CSV / 永続化) が **OK** で終了するか確認．
+Windows の PowerShell から `npm run admin -- ...` を呼ぶと，`--name` などのフラグが npm に渡ってしまうことがあります．その場合は `node bin/kj-admin.js <コマンド>` を直接実行してください．
 
-## ファイル構成
+## 接続 URL の形
 
 ```
-kj-trace-server/
-├─ package.json
-├─ src/
-│  ├─ index.js           ; WebSocket サーバー + verifyClient 認証
-│  ├─ rooms.js           ; ルームメタ + 招待リスト (JSON)
-│  ├─ audit.js           ; 監査ログ append-only + CSV
-│  └─ persistence.js     ; Y.Doc updates の永続化
-├─ bin/
-│  └─ kj-admin.js        ; 管理 CLI
-├─ data/
-│  ├─ rooms.json         ; ルーム + 招待リスト
-│  ├─ audit/<id>.jsonl   ; 監査ログ
-│  └─ <id>.bin           ; Y.Doc updates
-├─ test-client.html      ; ブラウザ最小クライアント
-├─ test-smoke.js         ; ヘッドレステスト
-└─ README.md
+wss://<host>/<roomId>?t=<招待トークン>&nick=<表示名>
 ```
 
-## 制限 (Phase 4b-1 として割り切り)
+管理画面の招待の表で「URL」を押すと，この形の招待 URL がコピーされます．
 
-- **22 テーブル全部の Y.Doc マッピングはまだ**: 現状は任意の `Y.Array` / `Y.Map` を受け付けるだけ．Phase 4b-2 で KJ Trace Studio の全 schema をマップ
-- **TLS / WSS なし**: VPN 経由前提．Phase 4b-3 で reverse-proxy 構成サンプル提供予定
-- **JSON ファイル DB**: ゼミ規模で十分．数千ユーザーになれば SQLite 化
-- **コンパクション未実装**: `data/<room>.bin` は append-only．長期運用で肥大する
+## 開発
 
-## 関連
+```bash
+npm test          # vitest
+npm run smoke     # 起動して同期・招待・監査を確かめる
+```
 
-- 設計書: `../docs/yjs-sync-design.md`
-- Phase 4 全体ロードマップ: 同設計書 §9
+## 互換性
+
+旧名の時代からのプロトコルの契約は変えていません（サブプロトコル `kj-studio.v1`・IndexedDB のキー `kj-room-<id>`・環境変数 `KJ_*`・`.kjproj`・`doc.getMap('tables')`）．
+
+## ライセンス
+
+Apache License 2.0（[LICENSE](LICENSE)・[NOTICE](NOTICE)）．
