@@ -186,15 +186,20 @@ async function main() {
   console.log(`  token : ${TOKEN_PATH}`);
   console.log();
   console.log('次の手順:');
-  console.log('  1. サーバー起動: npm start （または start-server.bat）');
+  console.log('  1. サーバー起動: npm start');
   console.log('  2. 管理画面: http://' + adminBindHost + ':' + adminPort + '/admin');
-  console.log('  3. ブラウザで管理 token を入力してログイン');
+  console.log('  3. ブラウザで管理 token（config/admin-token.txt の中身）を入力してログイン');
   console.log();
 
   // preset 別の追加手順
   if (presetName === 'cloudflare-quick') {
-    console.log('  ▼ Cloudflare Quick Tunnel 起動方法:');
-    console.log('     cloudflared tunnel --url http://localhost:' + appPort);
+    // 2026-11-07: 管理画面のボタンで張る形に統一（手で cloudflared を起動すると，
+    // 管理画面の「URL」ボタンがその URL を知らず，招待 URL を作れない）．
+    console.log('  ▼ Cloudflare Quick Tunnel:');
+    console.log('     管理画面の「サーバー URL」の「▶ 起動 (Quick Tunnel)」を押します．');
+    console.log('     cloudflared が無ければ先に入れてください:');
+    console.log('       Windows: winget install --id Cloudflare.cloudflared -e');
+    console.log('       Mac    : brew install cloudflared');
   } else if (presetName === 'cloudflare-named') {
     console.log('  ▼ Cloudflare Named Tunnel:');
     console.log('     cloudflared tunnel run --token <your-tunnel-token>');
