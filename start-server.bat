@@ -6,8 +6,10 @@ rem ============================================================
 rem  Affinity Mapping Studio Server  起動スクリプト  (簡素 goto/label 版 2026-06-03)
 rem
 rem  この 1 つのウィンドウで以下を実行:
-rem   - Cloudflare Tunnel を背後で起動 (cloudflared があれば)
 rem   - 管理画面をブラウザで開く
+rem   - preset が cloudflare-quick なら，サーバーの起動後に管理 API で Quick Tunnel を張る
+rem     (scripts\auto-tunnel.mjs．2026-11-07 から．以前は cloudflared を直接起動していたが，
+rem      そのトンネルは管理画面が知らず，招待 URL のボタンや「停止」と食い違った)
 rem   - Affinity Mapping Studio Server を foreground で実行
 rem
 rem  停止: このウィンドウを閉じる
@@ -16,7 +18,6 @@ rem ============================================================
 set "PORT=1234"
 set "KJ_ADMIN_PORT=1235"
 set "KJ_ADMIN_BIND_HOST=127.0.0.1"
-set "CFLOG=%TEMP%\kj-cloudflared.log"
 
 cd /d "%~dp0"
 
@@ -48,32 +49,6 @@ if errorlevel 1 goto :err_install
 powershell -NoProfile -Command "if (Get-NetTCPConnection -State Listen -LocalPort %PORT% -EA SilentlyContinue) { exit 7 } else { exit 0 }" >nul 2>nul
 if !errorlevel! equ 7 goto :err_port_in_use
 
-rem --- Cloudflare Tunnel ------------------------------------------
-set "CFURL="
-where cloudflared >nul 2>nul
-if errorlevel 1 goto :no_cf
-goto :start_cf
-
-:no_cf
-echo [info] cloudflared が見つかりません．LAN ローカル運用のみ．
-echo        公開 URL が欲しい場合は別ターミナルで:
-echo          winget install Cloudflare.cloudflared
-goto :open_admin
-
-:start_cf
-echo [start] Cloudflare Tunnel を背後で起動中...
-if exist "%CFLOG%" del "%CFLOG%" >nul 2>nul
-start "cloudflared" /B cloudflared tunnel --no-autoupdate --url http://localhost:%PORT% > "%CFLOG%" 2>&1
-echo [wait] トンネル URL 取得中 (最大 15 秒)...
-set "_CFTRY=0"
-
-:cf_wait_loop
-set /a _CFTRY+=1
-if !_CFTRY! gtr 15 goto :open_admin
-if defined CFURL goto :open_admin
-timeout /t 1 /nobreak >nul
-for /f "delims=" %%u in ('powershell -NoProfile -File "scripts\find-cf-url.ps1"') do set "CFURL=%%u"
-goto :cf_wait_loop
 
 :open_admin
 rem R6 (2026-06-09): fragment #_t= で token 自動注入．server に送信されない．
@@ -86,21 +61,16 @@ echo     !KJ_ADMIN_TOKEN!
 echo.
 echo   管理画面 (localhost) : http://%KJ_ADMIN_BIND_HOST%:%KJ_ADMIN_PORT%/admin#_t=^<token^>
 echo   LAN 接続 URL         : ws://(このPCのIP):%PORT%
-if defined CFURL goto :print_cf
-echo   Cloudflare URL       : ^(未起動^)
-goto :print_done
+echo   Cloudflare           : preset が cloudflare-quick なら，起動後にこのウィンドウに URL が出ます
 
-:print_cf
-set "WSURL=!CFURL:https=wss!"
-echo   Cloudflare HTTPS     : !CFURL!
-echo   共同研究者用 wss URL : !WSURL!
-
-:print_done
 echo ============================================================
 echo.
 echo  サーバーをこのウィンドウで実行します．
 echo  停止するにはこのウィンドウを閉じてください．
 echo.
+
+rem 背後でサーバーの起動を待ち，管理 API で Quick Tunnel を張る (preset が cloudflare-quick のときだけ)
+start "" /B node scripts\auto-tunnel.mjs
 
 node src\index.js
 

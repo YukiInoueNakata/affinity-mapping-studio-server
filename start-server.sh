@@ -4,8 +4,10 @@
 # CP1 (2026-06-10): start-server.bat の移植．
 #
 # このターミナルで以下を実行:
-#   - Cloudflare Tunnel を背後で起動 (cloudflared があれば)
 #   - 管理画面をブラウザで開く
+#   - preset が cloudflare-quick なら，サーバーの起動後に管理 API で Quick Tunnel を張る
+#     (scripts/auto-tunnel.mjs．2026-11-07 から．以前は cloudflared を直接起動していたが，
+#      そのトンネルは管理画面が知らず，招待 URL のボタンや「停止」と食い違った)
 #   - Affinity Mapping Studio Server を foreground で実行
 #
 # 停止: Ctrl-C
@@ -17,8 +19,6 @@ PORT="${KJ_PORT:-1234}"
 ADMIN_PORT="${KJ_ADMIN_PORT:-1235}"
 ADMIN_BIND_HOST="${KJ_ADMIN_BIND_HOST:-127.0.0.1}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CFLOG="${TMPDIR:-/tmp}/kj-cloudflared.log"
-CFPID=""
 
 cd "$SCRIPT_DIR"
 
@@ -95,35 +95,7 @@ if is_port_in_use "$PORT"; then
   exit 1
 fi
 
-# --- 4. cloudflared (任意) ---
-
-CFURL=""
-cleanup() {
-  if [ -n "$CFPID" ] && kill -0 "$CFPID" 2> /dev/null; then
-    echo "[info] cloudflared を停止 (pid=$CFPID)"
-    kill "$CFPID" 2> /dev/null || true
-  fi
-}
-trap cleanup EXIT INT TERM
-
-if command -v cloudflared > /dev/null 2>&1; then
-  echo "[start] Cloudflare Tunnel を背後で起動中..."
-  : > "$CFLOG"
-  cloudflared tunnel --no-autoupdate --url "http://localhost:$PORT" > "$CFLOG" 2>&1 &
-  CFPID=$!
-  echo "[wait] トンネル URL 取得中 (最大 15 秒)..."
-  for _ in $(seq 1 15); do
-    sleep 1
-    CFURL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$CFLOG" 2> /dev/null | head -1 || true)
-    [ -n "$CFURL" ] && break
-  done
-else
-  echo "[info] cloudflared が見つかりません．LAN ローカル運用のみ．"
-  case "$OS" in
-    mac)   echo "       公開 URL が欲しい場合: brew install cloudflared" ;;
-    linux) echo "       公開 URL が欲しい場合: 'sudo apt install cloudflared' か Cloudflare 公式 deb" ;;
-  esac
-fi
+# --- 4. Cloudflare Quick Tunnel は起動後に scripts/auto-tunnel.mjs が張る (下の 7.) ---
 
 # --- 5. 管理画面を開く (R6: fragment 方式) ---
 
@@ -139,13 +111,7 @@ echo "    $ADMIN_TOKEN"
 echo
 echo "  管理画面 (localhost) : http://${ADMIN_BIND_HOST}:${ADMIN_PORT}/admin#_t=<token>"
 echo "  LAN 接続 URL         : ws://(このマシンの IP):${PORT}"
-if [ -n "$CFURL" ]; then
-  WSURL="${CFURL/https/wss}"
-  echo "  Cloudflare HTTPS     : $CFURL"
-  echo "  共同研究者用 wss URL : $WSURL"
-else
-  echo "  Cloudflare URL       : (未起動)"
-fi
+echo "  Cloudflare           : preset が cloudflare-quick なら，起動後にこのターミナルに URL が出ます"
 echo "============================================================"
 echo
 echo " サーバーをこのターミナルで実行します．"
@@ -158,5 +124,9 @@ export KJ_ADMIN_TOKEN="$ADMIN_TOKEN"
 export KJ_ADMIN_PORT="$ADMIN_PORT"
 export KJ_ADMIN_BIND_HOST="$ADMIN_BIND_HOST"
 export PORT
+
+# 背後でサーバーの起動を待ち，管理 API で Quick Tunnel を張る (preset が cloudflare-quick のときだけ)．
+# トンネルの cloudflared はサーバーの子なので，Ctrl-C でサーバーと一緒に止まる．
+node scripts/auto-tunnel.mjs &
 
 exec node src/index.js

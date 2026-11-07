@@ -153,6 +153,8 @@ cat config/admin-token.txt
 
 The admin page opens. From the top: "サーバー URL" (server URLs), "認証ポリシー（シナリオ）" (authentication scenarios), and "ルーム" (rooms).
 
+Alternatively, on Windows you can double-click `start-server.bat` in the server folder (on Mac, run `./start-server.sh`). It opens the admin page with the admin token already entered, and if you chose Quick Tunnel in the wizard, it also starts the tunnel described in the next section. To stop, close the black window (on Mac, press Ctrl + C).
+
 ## 4. Let outside people join (Quick Tunnel)
 
 Press "▶ 起動 (Quick Tunnel)" (start) at the lower right of the "サーバー URL" box.
