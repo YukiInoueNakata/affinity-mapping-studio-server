@@ -1,0 +1,66 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AMS Server",
+  "version": "0.3.0",
+  "identifier": "io.github.yukiinouenakata.ams-server",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1421",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Affinity Mapping Studio Server",
+        "width": 980,
+        "height": 720,
+        "minWidth": 720,
+        "minHeight": 560
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis",
+      "dmg",
+      "app"
+    ],
+    "publisher": "Yuki Inoue Nakata",
+    "category": "Productivity",
+    "shortDescription": "Affinity Mapping Studio Server（共同編集サーバ）の管理 GUI",
+    "longDescription": "Affinity Mapping Studio の共同編集サーバを，Node.js と cloudflared を同梱した形で起動・停止・監視する管理 GUI．Cloudflare Quick Tunnel の起動と停止，ログの表示，ブラウザの管理画面を開く機能を持つ．",
+    "copyright": "(c) 2026 Yuki Inoue Nakata",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../resources/server": "server",
+      "../resources/node-runtime": "node-runtime",
+      "../resources/cloudflared": "cloudflared"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English",
+          "Japanese"
+        ],
+        "displayLanguageSelector": false
+      }
+    },
+    "license": "Apache-2.0",
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    }
+  }
+}

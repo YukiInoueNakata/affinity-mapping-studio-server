@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+dist/
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# 同梱物 (scripts/prepare-bundle.mjs が作る．git に入れない)
+resources/server/
+resources/node-runtime/
+resources/cloudflared/
+
+# build artifacts
+*.exe
+*.msi
+*.dmg
+
+# logs
+*.log

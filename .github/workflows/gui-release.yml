@@ -1,0 +1,82 @@
+name: Build AMS Server installers (Windows NSIS + macOS DMG)
+
+# サーバの管理 GUI (gui/) に，サーバ・Node.js・cloudflared を同梱したインストーラを作る．
+# タグ (v*) を push すると，下書きの GitHub Release を作って添付する．公開は手で行う．
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            arch: x64
+            bundles: nsis
+            artifact-name: ams-server-windows-x64
+            artifact-glob: gui/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            arch: arm64
+            bundles: dmg
+            artifact-name: ams-server-macos-arm64
+            artifact-glob: gui/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          # Intel Mac 用．Apple Silicon のランナーでクロスビルドする (同梱の準備は実行を伴わない)．
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            arch: x64
+            bundles: dmg
+            artifact-name: ams-server-macos-x64
+            artifact-glob: gui/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+
+    runs-on: ${{ matrix.platform }}
+    defaults:
+      run:
+        working-directory: gui
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install GUI dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Prepare bundle (server + Node.js + cloudflared, SHA256 checked)
+        run: node scripts/prepare-bundle.mjs --arch ${{ matrix.arch }}
+
+      - name: Tauri build
+        run: npx tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-glob }}
+          if-no-files-found: error
+
+      - name: Create draft GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: AMS Server ${{ github.ref_name }}
+          files: ${{ matrix.artifact-glob }}
