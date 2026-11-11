@@ -10,13 +10,14 @@
 import { readFile, writeFile, mkdir, appendFile, stat, rename, unlink, copyFile, readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DATA_DIR } from './paths.js';
 import { randomUUID } from 'node:crypto';
 import * as Y from 'yjs';
 import { failLoud } from './notify.js';
 import { assertValidRoomId } from './room-id.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, '..', 'data');
+
 // Codex#7: restore 前退避 .bin.<tag>.bak の保持世代数．
 const BACKUP_RETENTION = 20;
 

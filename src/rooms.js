@@ -22,12 +22,15 @@
 import { readFile, writeFile, mkdir, stat, rename, unlink } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DATA_DIR } from './paths.js';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { assertValidRoomId, isValidRoomId } from './room-id.js';
 import { isIpInCidrs, isTailscaleIp, isTrueLocalhostDirect } from './ip-trust.js';
+import { getResolvedConfig, isPublicPreset } from './config.js';
+import { getTunnelStatus } from './tunnel.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, '..', 'data');
+
 const ROOMS_FILE = join(DATA_DIR, 'rooms.json');
 const SCRAP_DIR = join(DATA_DIR, 'scrap');
 const AUDIT_DIR = join(DATA_DIR, 'audit');
@@ -388,6 +391,25 @@ export function inferAuthPolicy(room, serverAuthPolicy) {
   };
 }
 
+/** localhostAuto を止める理由 (公開中なら理由の文字列，そうでなければ null)．
+ *  設定や状態を読めないときは，安全側に倒して止める． */
+async function localhostAutoBlockReason() {
+  let presetName;
+  try {
+    presetName = getResolvedConfig().preset.name;
+  } catch {
+    return 'config-not-loaded';
+  }
+  if (isPublicPreset(presetName)) return `preset=${presetName}`;
+  try {
+    const t = await getTunnelStatus();
+    if (t.running) return 'tunnel-running';
+  } catch {
+    return 'tunnel-status-unknown';
+  }
+  return null;
+}
+
 /** R1: 1 つの provider を試して { passed, role?, identity?, reason? } を返す．
  *  passed=false の場合 reason に「なぜ通らなかったか」を入れる． */
 async function tryProvider(name, ctx, room, effectivePolicy, serverAuthPolicy) {
@@ -412,6 +434,12 @@ async function tryProvider(name, ctx, room, effectivePolicy, serverAuthPolicy) {
     case 'localhostAuto': {
       // R3: directIp で判定 (judgeIp ではない．XFF spoof 防御)
       if (!isTrueLocalhostDirect(directIp)) return { passed: false, reason: 'not-localhost' };
+      // 2026-11-11: 外に公開しているときは localhostAuto で通さない．
+      // cloudflared などのトンネルは外部の接続を 127.0.0.1 から中継するので，
+      // 部屋の設定が on のままトンネルを張ると，外の人が認証なしで editor になれてしまう．
+      // 公開系 preset のときとトンネルが動いているときは，部屋の設定にかかわらず拒否する．
+      const exposure = await localhostAutoBlockReason();
+      if (exposure) return { passed: false, reason: `localhost-auto-blocked:${exposure}` };
       return { passed: true, role: 'editor', identity: `localhost:${directIp}` };
     }
 

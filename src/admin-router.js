@@ -140,7 +140,9 @@ export async function handleAdminRequest(req, res) {
     // A5 (2026-06-09): R5+R8 runtime + tunnel endpoint
     if (req.method === 'GET' && p === '/admin/api/server/runtime') {
       const cfg = getResolvedConfig();
-      const cloudflaredPath = await detectCloudflared();
+      let cloudflaredPath = null;
+      let cloudflaredError = null;
+      try { cloudflaredPath = await detectCloudflared(); } catch (e) { cloudflaredError = e.message; }
       const tunnelStatus = await getTunnelStatus();
       const lanUrls = collectLanUrls(cfg.network.appPort);
       sendJson(res, 200, {
@@ -153,6 +155,7 @@ export async function handleAdminRequest(req, res) {
           adminPort: cfg.network.adminPort,
         },
         cloudflaredPath,
+        cloudflaredError,
         tunnelStatus,
         warnings: cfg.warnings,
       });

@@ -15,10 +15,11 @@ import { readFile, writeFile, rename, unlink, stat, access } from 'node:fs/promi
 import { constants as fsConstants } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DATA_DIR } from './paths.js';
 import { getResolvedConfig } from './config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, '..', 'data');
+
 const RUNTIME_PATH = join(DATA_DIR, 'runtime.json');
 
 const CLOUDFLARED_CANDIDATES = (() => {
@@ -64,6 +65,13 @@ async function fileExists(path) {
 /** R8 A4: cloudflared の実行ファイル path を検出．
  *  PATH → 既知ロケーションの順．見つかれば文字列，無ければ null． */
 export async function detectCloudflared() {
+  // 管理 GUI のインストーラ版は cloudflared を同梱し，その場所を KJ_CLOUDFLARED_PATH で渡す (2026-11-11)．
+  // 指定があるのに実行できないときは，PATH の別のものに黙って切り替えず止める (fail-loud)．
+  const explicit = process.env.KJ_CLOUDFLARED_PATH?.trim();
+  if (explicit) {
+    if (await fileExists(explicit)) return explicit;
+    throw new Error(`KJ_CLOUDFLARED_PATH に指定された cloudflared を実行できません: ${explicit}`);
+  }
   const fromPath = await whichCloudflared();
   if (fromPath) return fromPath;
   for (const p of CLOUDFLARED_CANDIDATES) {

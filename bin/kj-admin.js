@@ -48,13 +48,14 @@ import * as Y from 'yjs';
 import { writeFile, readdir, stat, rmdir, unlink, mkdir, copyFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DATA_DIR, CONFIG_DIR } from '../src/paths.js';
 import { randomBytes } from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER_ROOT = join(__dirname, '..');
-const DATA_DIR = join(SERVER_ROOT, 'data');
+
 const SCRAP_DIR = join(DATA_DIR, 'scrap');
-const CONFIG_DIR = join(SERVER_ROOT, 'config');
+
 const TOKEN_PATH = join(CONFIG_DIR, 'admin-token.txt');
 
 function parseFlags(args) {

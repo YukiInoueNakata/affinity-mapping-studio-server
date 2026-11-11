@@ -17,9 +17,10 @@ import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CONFIG_DIR } from './paths.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CONFIG_DIR = join(__dirname, '..', 'config');
+
 const CONFIG_PATH = join(CONFIG_DIR, 'server.json');
 const ADMIN_TOKEN_PATH = join(CONFIG_DIR, 'admin-token.txt');
 
@@ -90,6 +91,11 @@ const PUBLIC_PRESETS = new Set([
   'tailscale-funnel',
   'reverse-proxy',
 ]);
+
+/** 公開系 preset か (rooms.js の localhostAuto の判定で使う)． */
+export function isPublicPreset(name) {
+  return PUBLIC_PRESETS.has(name);
+}
 
 /** Hard-coded defaults (ハードコード既定値．config も env も無い時の最終 fallback) */
 const DEFAULTS = {

@@ -13,6 +13,7 @@ import {
   inviteEmail,
   checkAccess,
 } from '../rooms.js';
+import { setResolvedConfigForTest } from '../config.js';
 
 // テスト用 server authPolicy (resolved config 相当)
 const baseServerPolicy = {
@@ -168,12 +169,30 @@ describe('checkAccess: localhost-auto シナリオ (R3)', () => {
   });
 
   it('localhostAutoEnabled=true + directIp=127.0.0.1 で localhost-auto 経由', async () => {
+    setResolvedConfigForTest({ preset: { name: 'local' } });
     const id = await makeTestRoom('localhost-on', { accessControl: 'open' });
     const sp = { ...baseServerPolicy, localhostAutoEnabled: true, legacyEmailEnabled: false };
     const v = await checkAccess(id, { judgeIp: '127.0.0.1', directIp: '127.0.0.1' }, sp);
     expect(v.allowed).toBe(true);
     expect(v.via).toBe('localhostAuto');
     expect(v.role).toBe('editor');
+  });
+
+  // 2026-11-11: トンネルは外部の接続を 127.0.0.1 から中継するので，公開中は localhostAuto で通さない．
+  it('公開系 preset (cloudflare-quick) では localhostAuto=true でも通らない', async () => {
+    setResolvedConfigForTest({ preset: { name: 'cloudflare-quick' } });
+    const id = await makeTestRoom('localhost-public', { accessControl: 'open' });
+    const sp = { ...baseServerPolicy, localhostAutoEnabled: true, legacyEmailEnabled: false };
+    const v = await checkAccess(id, { judgeIp: '127.0.0.1', directIp: '127.0.0.1' }, sp);
+    expect(v.allowed).toBe(false);
+  });
+
+  it('config が読めないときは localhostAuto で通さない (安全側)', async () => {
+    setResolvedConfigForTest(null);
+    const id = await makeTestRoom('localhost-noconfig', { accessControl: 'open' });
+    const sp = { ...baseServerPolicy, localhostAutoEnabled: true, legacyEmailEnabled: false };
+    const v = await checkAccess(id, { judgeIp: '127.0.0.1', directIp: '127.0.0.1' }, sp);
+    expect(v.allowed).toBe(false);
   });
 
   it('localhostAutoEnabled=true でも directIp が public IP なら通らない (R2 XFF 防御)', async () => {

@@ -17,12 +17,13 @@ import { readFile, writeFile, mkdir, readdir, stat, unlink, rename, copyFile } f
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DATA_DIR } from './paths.js';
 import { randomBytes } from 'node:crypto';
 import * as Y from 'yjs';
 import { assertValidRoomId } from './room-id.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, '..', 'data');
+
 const SNAP_ROOT = join(DATA_DIR, 'snapshots');
 
 const DEFAULT_RETENTION = 200;

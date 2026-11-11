@@ -11,11 +11,12 @@ import { stdin, stdout } from 'node:process';
 import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CONFIG_DIR } from '../src/paths.js';
 import { randomBytes } from 'node:crypto';
 import { EXPOSURE_PRESETS } from '../src/config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CONFIG_DIR = join(__dirname, '..', 'config');
+
 const CONFIG_PATH = join(CONFIG_DIR, 'server.json');
 const TOKEN_PATH = join(CONFIG_DIR, 'admin-token.txt');
 

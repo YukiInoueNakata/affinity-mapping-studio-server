@@ -18,11 +18,12 @@
 import { appendFile, mkdir, stat, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DATA_DIR } from './paths.js';
 import { assertValidRoomId } from './room-id.js';
 import { failLoud } from './notify.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const AUDIT_DIR = join(__dirname, '..', 'data', 'audit');
+const AUDIT_DIR = join(DATA_DIR, 'audit');
 
 async function ensureAuditDir() {
   try {
