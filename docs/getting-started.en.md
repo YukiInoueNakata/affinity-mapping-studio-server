@@ -5,9 +5,10 @@
 Affinity Mapping Studio Server (AMS Server) lets several people edit the same diagram in [Affinity Mapping Studio](https://github.com/YukiInoueNakata/affinity-mapping-studio) at the same time.
 This guide shows how to run the server on your own computer and let people outside your network join through a temporary Cloudflare tunnel.
 
-- You only type commands to install and start the server. Creating rooms, inviting people, and going public are all done with buttons in the admin page in your browser.
+- There are two ways to start. With the installer (option A) you do not need to install Node.js or cloudflared, and you type no commands. With the command-line install (option B) you only type commands to install and start the server.
+- Either way, creating rooms, inviting people, and going public are all done with buttons in the admin page in your browser.
 - Follow the red boxes in the pictures, in order.
-- The admin page is in Japanese. Each button is given here as its Japanese label followed by an English gloss.
+- The admin page and the desktop app are in Japanese. Each button is given here as its Japanese label followed by an English gloss.
 - For participants (people using the app), see section 6 of the app guide: [Collaborative editing (connecting to a server)](https://github.com/YukiInoueNakata/affinity-mapping-studio/blob/main/docs/getting-started.en.md#6-collaborative-editing-connecting-to-a-server).
 
 ## Contents
@@ -26,7 +27,8 @@ This guide shows how to run the server on your own computer and let people outsi
 ## 0. Overview and safety rules
 
 ```
-Prepare (Node.js, cloudflared, the server) -> wizard -> start
+Option A: install the installer -> start in the app
+Option B: prepare (Node.js, cloudflared, the server) -> wizard -> start
   -> admin page: start the tunnel -> create a room -> invite -> send invite URLs
   -> work -> stop the tunnel -> stop the server
 ```
@@ -42,6 +44,45 @@ Please keep these four rules.
 
 ## 1. Prepare (first time only)
 
+### Option A: use the installer (recommended)
+
+The installer contains the server, Node.js, and cloudflared. You do not need to install anything else.
+If you use option A, skip "Option B" below and [2. Setup wizard](#2-setup-wizard-first-time-only), and go to "Option A" in [3. Start the server and open the admin page](#3-start-the-server-and-open-the-admin-page).
+
+On the [Releases page](https://github.com/YukiInoueNakata/affinity-mapping-studio-server/releases/latest), download one file under "Assets" that matches your computer.
+
+| Computer | File (example) |
+|---|---|
+| Windows | `AMS.Server_0.3.0_x64-setup.exe` |
+| Mac (Apple Silicon, M1 or later) | `AMS.Server_0.3.0_aarch64.dmg` |
+| Mac (Intel) | `AMS.Server_0.3.0_x64.dmg` |
+
+`0.3.0` is the version number; it changes in newer versions. If you are not sure which Mac you have, open the Apple menu at the top left -> "About This Mac" and look at "Chip" (Apple M-something means Apple Silicon) or "Processor" (Intel). macOS 11 or later is required.
+
+**Windows**
+
+1. Double-click the downloaded `.exe`.
+2. If you see "Windows protected your PC", press "More info" and then "Run anyway". This appears because the app is not code-signed.
+3. Follow the installer. "AMS Server" appears in the Start menu.
+
+To uninstall, open Settings -> Apps -> Installed apps, choose "AMS Server", and press "Uninstall". Your room data is kept (see the table in [7. When you are done](#7-when-you-are-done-stop)).
+
+**Mac**
+
+1. Open the downloaded `.dmg` and drag "AMS Server" into the "Applications" folder.
+2. Open Terminal (Applications -> Utilities), paste this line, and press Enter:
+
+   ```bash
+   xattr -dr com.apple.quarantine "/Applications/AMS Server.app"
+   ```
+
+   Because the app is not signed by Apple, opening it without this line shows "“AMS Server” is damaged and can’t be opened". The app is not actually damaged. This line removes the mark that macOS adds to downloaded files.
+3. Open "AMS Server" in Applications.
+
+To uninstall, move "AMS Server" from Applications to the Trash.
+
+### Option B: install with commands
+
 You need three things.
 
 | Item | What for |
@@ -50,7 +91,7 @@ You need three things.
 | cloudflared | Creates a temporary public URL (not needed if you only use the server on your own computer) |
 | The server | This repository |
 
-### Windows
+**Windows**
 
 Open PowerShell (type "PowerShell" in the Start menu) and paste these lines one by one, pressing Enter after each.
 
@@ -62,7 +103,7 @@ winget install --id Git.Git -e
 
 Close PowerShell and open it again so that it finds the new programs.
 
-### Mac
+**Mac**
 
 Open Terminal. If you have [Homebrew](https://brew.sh/), paste:
 
@@ -70,7 +111,7 @@ Open Terminal. If you have [Homebrew](https://brew.sh/), paste:
 brew install node cloudflared git
 ```
 
-### Check
+**Check**
 
 ```bash
 node -v
@@ -79,7 +120,7 @@ cloudflared --version
 
 You are ready if `node -v` prints `v20` or higher.
 
-### Get the server
+**Get the server**
 
 In a folder of your choice (for example Documents), run:
 
@@ -92,6 +133,8 @@ npm install
 Without git, use "Code" -> "Download ZIP" on the GitHub page, unzip it, open a terminal in that folder, and run `npm install`.
 
 ## 2. Setup wizard (first time only)
+
+Not needed with option A (the installer). It is already set up for Quick Tunnel.
 
 In the server folder, run:
 
@@ -124,6 +167,18 @@ This creates `config/server.json` (settings) and `config/admin-token.txt` (admin
 To try the server only on your own computer, answer `1` (local) to the first question.
 
 ## 3. Start the server and open the admin page
+
+### Option A: start in the app
+
+1. Open "AMS Server" from the Start menu (on Mac, from Applications).
+2. In the "サーバー" (server) box, press "▶ 起動 + admin を開く" (start and open admin).
+3. The status turns to "● 稼働中" (running) and the admin page opens in your browser with the admin token already entered.
+
+Keep the app window open until you finish (closing it stops the server).
+The "ログ" (log) box at the bottom shows the server output. Look there when something goes wrong.
+Go on to [4. Let outside people join](#4-let-outside-people-join-quick-tunnel).
+
+### Option B: start with a command
 
 In the server folder, run:
 
@@ -165,7 +220,8 @@ Press OK in the confirmation. After a few seconds you see "起動成功" (starte
 
 - The URL changes every time you start the tunnel.
 - One tunnel lasts up to 7 days. The intended use is to start it before each session and stop it afterwards.
-- If the "Cloudflare" row says "cloudflared 未インストール" (not installed), install cloudflared ([1. Prepare](#1-prepare-first-time-only)) and restart the server.
+- If the "Cloudflare" row says "cloudflared 未インストール" (not installed), install cloudflared ([1. Prepare](#1-prepare-first-time-only)) and restart the server (with option A the bundled cloudflared is used, so this does not appear).
+- With option A you can also press "起動 (Quick Tunnel)" in the "Cloudflare Quick Tunnel" box of the app. Starting it from the admin page or from the app gives the same tunnel.
 
 ## 5. Create a room
 
@@ -217,21 +273,33 @@ Connected people appear under "接続中" (connected) at the lower left.
 ## 7. When you are done (stop)
 
 1. In the admin page, press "⏹ 停止" (stop) in the "Cloudflare" row and press OK. Nobody from outside can get in any more.
-2. In the terminal running `npm start`, press Ctrl + C. The server stops.
+2. Stop the server.
+   - Option A: close the app window. If the tunnel is still running, the app stops it first and then stops the server.
+   - Option B: in the terminal running `npm start`, press Ctrl + C.
 
-Your work is saved in the `data/` folder of the server. Start the server again to continue.
+Your work is saved in the following place. Start the server again to continue.
+
+| Option | Location |
+|---|---|
+| Option A (Windows) | `%APPDATA%\io.github.yukiinouenakata.ams-server\` (`data\` and `config\`) |
+| Option A (Mac) | `~/Library/Application Support/io.github.yukiinouenakata.ams-server/` |
+| Option B | The `data/` folder of the server |
+
+With option A, the admin token is in `admin-token.txt` in the `config` folder of the location above.
 
 ## 8. From the second time on
 
 You do not need to prepare or run the wizard again.
 
-1. `npm start` in the server folder
-2. Open the admin page (`http://127.0.0.1:1235/admin`) and enter the admin token
-3. Press "▶ 起動 (Quick Tunnel)"
-4. **The tunnel URL has changed, so press "URL" for each participant and send the invite URLs again** (the invite tokens stay the same)
-5. When done, see [7. When you are done](#7-when-you-are-done-stop)
+1. Option A: open the app and press "▶ 起動 + admin を開く". Option B: run `npm start` in the server folder, open the admin page (`http://127.0.0.1:1235/admin`), and enter the admin token
+2. Press "▶ 起動 (Quick Tunnel)"
+3. **The tunnel URL has changed, so press "URL" for each participant and send the invite URLs again** (the invite tokens stay the same)
+4. When done, see [7. When you are done](#7-when-you-are-done-stop)
 
-To update the server, stop it and run in the server folder:
+To update the server, stop it first. Your room data is kept.
+
+- Option A: download the new installer from the Releases page and install it the same way (on Mac, run the `xattr` line again after reinstalling).
+- Option B: run in the server folder:
 
 ```bash
 git pull
@@ -242,6 +310,9 @@ npm install
 
 | What happens | Cause and fix |
 |---|---|
+| Windows shows "Windows protected your PC" | The app is not code-signed. Press "More info" -> "Run anyway" |
+| Mac says the app "is damaged and can’t be opened" | The app is not signed by Apple. Run the `xattr` line in option A of [1. Prepare](#1-prepare-first-time-only), then open it again |
+| Pressing "▶ 起動" in the app does not turn the status to "● 稼働中" | Look at the "ログ" (log) box. If it says `EADDRINUSE`, another server is running (see the next row) |
 | `npm start` stops with `EADDRINUSE` (address already in use) | Another copy of the server is running. Find the earlier terminal, press Ctrl + C there, and start again |
 | The admin page says "認証エラー: トークンが違います" (wrong token) | The token was pasted incorrectly. The page asks again after reloading; paste the contents of `config/admin-token.txt` without extra spaces |
 | The admin page does not open | The server is not running. Check that the `npm start` terminal is still open. The admin page only opens in a browser on the computer running the server |

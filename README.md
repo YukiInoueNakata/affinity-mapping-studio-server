@@ -12,6 +12,22 @@ The collaboration server for Affinity Mapping Studio (Yjs + WebSocket), with per
 - [はじめてのガイド（日本語）](docs/getting-started.ja.md)
 - [Getting Started (English)](docs/getting-started.en.md)
 
+### インストーラ / Installer
+
+Node.js や cloudflared を別に入れずに使えるデスクトップアプリ（サーバーの起動・停止，Quick Tunnel，管理画面を開く）を [Releases](https://github.com/YukiInoueNakata/affinity-mapping-studio-server/releases/latest) に置いています．
+A desktop app that bundles Node.js and cloudflared is available on the Releases page.
+
+| PC | ファイル / File |
+|---|---|
+| Windows (x64) | `AMS.Server_<版>_x64-setup.exe` |
+| Mac (Apple Silicon) | `AMS.Server_<版>_aarch64.dmg` |
+| Mac (Intel) | `AMS.Server_<版>_x64.dmg` |
+
+署名をしていないため，Windows では SmartScreen，Mac では「壊れているため開けません」の表示が出ます．越え方はガイドの「1. 準備」にあります．
+The app is not code-signed; see section 1 of the guide for the SmartScreen / Gatekeeper workaround.
+
+### コマンドで入れる / From source
+
 最短の手順（Node.js 20 以上と，外に公開するなら cloudflared が必要）:
 
 ```bash
